@@ -1,0 +1,21 @@
+{
+  "routes": [
+    { "path": "/", "title": "Home" },
+    { "path": "/login", "title": "Sign in" },
+    { "path": "/signup", "title": "Create account" },
+    { "path": "/dashboard", "title": "Dashboard" },
+    { "path": "/materials", "title": "My Materials" },
+    { "path": "/materials/:id", "title": "Material details" },
+    { "path": "/tutor", "title": "AI Tutor" },
+    { "path": "/tutor/:conversationId", "title": "Tutor conversation" },
+    { "path": "/knowledge", "title": "Knowledge Map" },
+    { "path": "/quiz", "title": "Quiz builder" },
+    { "path": "/quiz/:id", "title": "Quiz" },
+    { "path": "/quiz/:id/result", "title": "Quiz result" },
+    { "path": "/flashcards", "title": "Flashcards" },
+    { "path": "/planner", "title": "Study Planner" },
+    { "path": "/progress", "title": "Progress" },
+    { "path": "/settings", "title": "Settings" },
+    { "path": "/profile", "title": "Profile" }
+  ]
+}
