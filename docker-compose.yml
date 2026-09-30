@@ -1,0 +1,20 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: campusai
+      POSTGRES_USER: campusai
+      POSTGRES_PASSWORD: dev-only-change-me
+    ports:
+      - "55432:5432"
+    volumes:
+      - campusai-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campusai -d campusai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  campusai-postgres:

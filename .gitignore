@@ -1,7 +1,11 @@
 node_modules/
-dist/
-*.tsbuildinfo
-.env
-.env.*
-!.env.example
+server/node_modules/
+server/dist/
+server/.env
+server/.env.*
+!server/.env.example
+server/uploads/
+server/storage/
+*.log
 .DS_Store
+coverage/

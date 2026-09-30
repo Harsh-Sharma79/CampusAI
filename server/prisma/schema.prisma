@@ -1,0 +1,826 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("CAMPUSAI_POSTGRES_URL")
+}
+
+enum UserRole {
+  STUDENT
+  ADMIN
+}
+
+enum DocumentStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum DocumentType {
+  SYLLABUS
+  NOTES
+  PREVIOUS_YEAR_PAPER
+  OTHER
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum QuestionType {
+  MCQ
+  TRUE_FALSE
+  SHORT_ANSWER
+}
+
+enum QuizType {
+  PRACTICE
+  DIAGNOSTIC
+}
+
+enum Difficulty {
+  FOUNDATIONAL
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum FlashcardState {
+  NEW
+  LEARNING
+  REVIEW
+  SUSPENDED
+}
+
+enum StudyTaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+enum ActivityType {
+  DOCUMENT_UPLOADED
+  DOCUMENT_PROCESSED
+  TUTOR_MESSAGE
+  GUIDED_LEARNING
+  DIAGNOSTIC_COMPLETED
+  QUIZ_COMPLETED
+  FLASHCARD_REVIEWED
+  STUDY_SESSION
+  STUDY_TASK_COMPLETED
+  PLAN_GENERATED
+}
+
+enum RecommendationAction {
+  GUIDED_LEARNING
+  QUIZ
+  FLASHCARDS
+  REVIEW
+  READ_DOCUMENT
+}
+
+enum BackgroundJobType {
+  PROCESS_DOCUMENT
+  GENERATE_EMBEDDINGS
+  ANALYZE_DOCUMENT
+  GENERATE_QUIZ
+  GENERATE_FLASHCARDS
+  UPDATE_RECOMMENDATIONS
+}
+
+enum BackgroundJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id                 String   @id @default(uuid()) @db.Uuid
+  name               String
+  email              String   @unique
+  passwordHash       String
+  avatar             String?
+  role               UserRole @default(STUDENT)
+  universityId       String?  @db.Uuid
+  courseId           String?  @db.Uuid
+  semesterId         String?  @db.Uuid
+  onboardingComplete Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  university          University?             @relation("CurrentUniversity", fields: [universityId], references: [id], onDelete: SetNull)
+  course              Course?                 @relation("CurrentCourse", fields: [courseId], references: [id], onDelete: SetNull)
+  semester            Semester?               @relation("CurrentSemester", fields: [semesterId], references: [id], onDelete: SetNull)
+  ownedUniversities   University[]            @relation("UniversityOwner")
+  ownedCourses        Course[]                @relation("CourseOwner")
+  ownedSemesters      Semester[]              @relation("SemesterOwner")
+  subjects            Subject[]
+  topics              Topic[]
+  documents           Document[]
+  chats               Chat[]
+  quizzes             Quiz[]
+  quizAttempts        QuizAttempt[]
+  flashcards          Flashcard[]
+  flashcardDecks      FlashcardDeck[]
+  studyPlans          StudyPlan[]
+  studySessions       StudySession[]
+  mastery             StudentMastery[]
+  topicPerformance    TopicPerformance[]
+  activities          LearningActivity[]
+  mistakes            Mistake[]
+  recommendations     Recommendation[]
+  notifications       Notification[]
+  settings            UserSettings?
+  aiUsage             AIUsage[]
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  exams               ExamEvent[]
+  learningSessions    GuidedLearningSession[]
+  backgroundJobs      BackgroundJob[]
+
+  @@index([courseId])
+  @@index([universityId])
+  @@index([semesterId])
+  @@index([createdAt])
+}
+
+model University {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerId   String   @db.Uuid
+  name      String
+  createdAt DateTime @default(now())
+
+  owner    User     @relation("UniversityOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  students User[]   @relation("CurrentUniversity")
+  courses  Course[]
+
+  @@unique([ownerId, name])
+  @@index([ownerId])
+}
+
+model Course {
+  id           String   @id @default(uuid()) @db.Uuid
+  ownerId      String   @db.Uuid
+  universityId String   @db.Uuid
+  name         String
+  createdAt    DateTime @default(now())
+
+  owner      User       @relation("CourseOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  university University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  students   User[]     @relation("CurrentCourse")
+  semesters  Semester[]
+  subjects   Subject[]
+
+  @@unique([universityId, name])
+  @@index([ownerId])
+  @@index([universityId])
+}
+
+model Semester {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerId   String   @db.Uuid
+  courseId  String   @db.Uuid
+  name      String
+  createdAt DateTime @default(now())
+
+  owner    User      @relation("SemesterOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  course   Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  students User[]    @relation("CurrentSemester")
+  subjects Subject[]
+
+  @@unique([courseId, name])
+  @@index([ownerId])
+  @@index([courseId])
+}
+
+model Subject {
+  id         String   @id @default(uuid()) @db.Uuid
+  ownerId    String   @db.Uuid
+  courseId   String?  @db.Uuid
+  semesterId String?  @db.Uuid
+  name       String
+  importance Int      @default(3)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  owner      User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  course     Course?            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  semester   Semester?          @relation(fields: [semesterId], references: [id], onDelete: SetNull)
+  documents  Document[]
+  topics     Topic[]
+  chats      Chat[]
+  quizzes    Quiz[]
+  exams      ExamEvent[]
+  activities LearningActivity[]
+
+  @@unique([ownerId, courseId, name])
+  @@index([ownerId])
+  @@index([courseId])
+  @@index([semesterId])
+}
+
+model Topic {
+  id            String   @id @default(uuid()) @db.Uuid
+  ownerId       String   @db.Uuid
+  subjectId     String   @db.Uuid
+  parentId      String?  @db.Uuid
+  canonicalPath String
+  name          String
+  description   String?  @db.Text
+  importance    Int      @default(3)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner            User                    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  subject          Subject                 @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  parent           Topic?                  @relation("TopicTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children         Topic[]                 @relation("TopicTree")
+  objectives       LearningObjective[]
+  documents        Document[]
+  documentLinks    DocumentTopic[]
+  chats            Chat[]
+  quizzes          Quiz[]
+  questions        Question[]
+  mastery          StudentMastery[]
+  performance      TopicPerformance[]
+  mistakes         Mistake[]
+  flashcards       Flashcard[]
+  studyTasks       StudyTask[]
+  studySessions    StudySession[]
+  activities       LearningActivity[]
+  recommendations  Recommendation[]
+  learningSessions GuidedLearningSession[]
+
+  @@unique([ownerId, subjectId, canonicalPath])
+  @@index([ownerId, subjectId])
+  @@index([parentId])
+}
+
+model LearningObjective {
+  id          String   @id @default(uuid()) @db.Uuid
+  topicId     String   @db.Uuid
+  name        String
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([topicId, name])
+  @@index([topicId])
+}
+
+model Document {
+  id                  String         @id @default(uuid()) @db.Uuid
+  ownerId             String         @db.Uuid
+  subjectId           String?        @db.Uuid
+  topicId             String?        @db.Uuid
+  fileName            String
+  title               String?
+  storageKey          String         @unique
+  storageUrl          String?
+  mimeType            String
+  fileSize            Int
+  checksum            String
+  pageCount           Int?
+  documentType        DocumentType   @default(OTHER)
+  status              DocumentStatus @default(UPLOADING)
+  errorCode           String?
+  errorMessage        String?        @db.Text
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  owner      User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  subject    Subject?        @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  topic      Topic?          @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  chunks     DocumentChunk[]
+  topicLinks DocumentTopic[]
+  chats      Chat[]
+  quizzes    Quiz[]
+  questions  Question[]
+  flashcards Flashcard[]
+  exams      ExamEvent[]
+
+  @@index([ownerId, createdAt])
+  @@index([ownerId, status])
+  @@index([subjectId])
+  @@index([topicId])
+}
+
+model DocumentTopic {
+  documentId    String   @db.Uuid
+  topicId       String   @db.Uuid
+  evidencePages Int[]    @default([])
+  createdAt     DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  topic    Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, topicId])
+  @@index([topicId])
+}
+
+model DocumentChunk {
+  id                  String                      @id @default(uuid()) @db.Uuid
+  documentId          String                      @db.Uuid
+  chunkIndex          Int
+  content             String                      @db.Text
+  pageNumber          Int?
+  tokenCount          Int?
+  embeddingModel      String?
+  embeddingDimensions Int?
+  embedding           Unsupported("vector(768)")?
+  createdAt           DateTime                    @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId, pageNumber])
+}
+
+model Chat {
+  id         String   @id @default(uuid()) @db.Uuid
+  ownerId    String   @db.Uuid
+  subjectId  String?  @db.Uuid
+  topicId    String?  @db.Uuid
+  documentId String?  @db.Uuid
+  title      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  owner      User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  subject    Subject?      @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  topic      Topic?        @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  document   Document?     @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  messages   ChatMessage[]
+  flashcards Flashcard[]
+
+  @@index([ownerId, updatedAt])
+  @@index([topicId])
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  chatId    String   @db.Uuid
+  role      ChatRole
+  content   String   @db.Text
+  citations Json?
+  createdAt DateTime @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+}
+
+model Quiz {
+  id         String     @id @default(uuid()) @db.Uuid
+  ownerId    String     @db.Uuid
+  subjectId  String?    @db.Uuid
+  topicId    String?    @db.Uuid
+  documentId String?    @db.Uuid
+  title      String
+  quizType   QuizType   @default(PRACTICE)
+  difficulty Difficulty @default(INTERMEDIATE)
+  createdAt  DateTime   @default(now())
+
+  owner     User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  subject   Subject?      @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  topic     Topic?        @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  document  Document?     @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  @@index([ownerId, createdAt])
+  @@index([subjectId])
+  @@index([topicId])
+}
+
+model Question {
+  id            String       @id @default(uuid()) @db.Uuid
+  quizId        String       @db.Uuid
+  documentId    String?      @db.Uuid
+  topicId       String?      @db.Uuid
+  type          QuestionType
+  prompt        String       @db.Text
+  options       Json?
+  correctAnswer String       @db.Text
+  gradingRubric String?      @db.Text
+  explanation   String?      @db.Text
+  difficulty    Difficulty   @default(INTERMEDIATE)
+  pageNumber    Int?
+  position      Int
+  createdAt     DateTime     @default(now())
+
+  quiz     Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  document Document?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  topic    Topic?       @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  answers  QuizAnswer[]
+  mistakes Mistake[]
+
+  @@unique([quizId, position])
+  @@index([quizId])
+  @@index([topicId])
+}
+
+model QuizAttempt {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String        @db.Uuid
+  quizId         String        @db.Uuid
+  status         AttemptStatus @default(IN_PROGRESS)
+  scorePercent   Float?
+  correctCount   Int           @default(0)
+  incorrectCount Int           @default(0)
+  startedAt      DateTime      @default(now())
+  completedAt    DateTime?
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz     Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers  QuizAnswer[]
+  mistakes Mistake[]
+
+  @@index([userId, startedAt])
+  @@index([quizId, status])
+}
+
+model QuizAnswer {
+  id            String   @id @default(uuid()) @db.Uuid
+  attemptId     String   @db.Uuid
+  questionId    String   @db.Uuid
+  response      String   @db.Text
+  isCorrect     Boolean
+  awardedPoints Float    @default(0)
+  feedback      String?  @db.Text
+  answeredAt    DateTime @default(now())
+
+  attempt  QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([questionId])
+}
+
+model Flashcard {
+  id             String         @id @default(uuid()) @db.Uuid
+  ownerId        String         @db.Uuid
+  deckId         String?        @db.Uuid
+  topicId        String?        @db.Uuid
+  documentId     String?        @db.Uuid
+  chatId         String?        @db.Uuid
+  pageNumber     Int?
+  front          String         @db.Text
+  back           String         @db.Text
+  state          FlashcardState @default(NEW)
+  intervalDays   Int            @default(0)
+  easeFactor     Float          @default(2.5)
+  reviewCount    Int            @default(0)
+  nextReviewAt   DateTime       @default(now())
+  lastReviewedAt DateTime?
+  createdAt      DateTime       @default(now())
+
+  owner    User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  deck     FlashcardDeck?    @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  topic    Topic?            @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  document Document?         @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  chat     Chat?             @relation(fields: [chatId], references: [id], onDelete: SetNull)
+  reviews  FlashcardReview[]
+
+  @@index([ownerId, nextReviewAt])
+  @@index([deckId])
+  @@index([topicId])
+}
+
+model FlashcardDeck {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerId   String   @db.Uuid
+  title     String
+  createdAt DateTime @default(now())
+
+  owner User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  cards Flashcard[]
+
+  @@index([ownerId, createdAt])
+}
+
+model FlashcardReview {
+  id                String   @id @default(uuid()) @db.Uuid
+  flashcardId       String   @db.Uuid
+  known             Boolean
+  responseTimeMs    Int?
+  reviewedAt        DateTime @default(now())
+  intervalAfterDays Int
+
+  flashcard Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+
+  @@index([flashcardId, reviewedAt])
+}
+
+model StudyPlan {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerId   String   @db.Uuid
+  title     String
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  tasks StudyTask[]
+
+  @@index([ownerId, startDate])
+}
+
+model StudyTask {
+  id                 String          @id @default(uuid()) @db.Uuid
+  planId             String          @db.Uuid
+  topicId            String?         @db.Uuid
+  title              String
+  description        String?         @db.Text
+  scheduledFor       DateTime
+  recommendedMinutes Int
+  status             StudyTaskStatus @default(TODO)
+  completedAt        DateTime?
+  createdAt          DateTime        @default(now())
+
+  plan  StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  topic Topic?    @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  @@index([planId, scheduledFor])
+  @@index([topicId])
+  @@index([status, scheduledFor])
+}
+
+model StudySession {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @db.Uuid
+  topicId         String?   @db.Uuid
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  durationMinutes Int?
+  notes           String?   @db.Text
+  createdAt       DateTime  @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  @@index([userId, startedAt])
+  @@index([topicId])
+}
+
+model StudentMastery {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @db.Uuid
+  topicId        String    @db.Uuid
+  masteryScore   Float
+  confidence     Float
+  lastStudiedAt  DateTime?
+  lastAssessedAt DateTime?
+  attemptCount   Int       @default(0)
+  correctCount   Int       @default(0)
+  incorrectCount Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId, masteryScore])
+  @@index([topicId])
+}
+
+model TopicPerformance {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @db.Uuid
+  topicId        String    @db.Uuid
+  attempts       Int       @default(0)
+  correct        Int       @default(0)
+  incorrect      Int       @default(0)
+  accuracy       Float?
+  recentAccuracy Float?
+  lastStudiedAt  DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId, accuracy])
+  @@index([topicId])
+}
+
+model LearningActivity {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @db.Uuid
+  subjectId       String?      @db.Uuid
+  topicId         String?      @db.Uuid
+  type            ActivityType
+  durationMinutes Int?
+  metadata        Json?
+  occurredAt      DateTime     @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  topic   Topic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  @@index([userId, occurredAt])
+  @@index([userId, type, occurredAt])
+  @@index([topicId, occurredAt])
+}
+
+model Mistake {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  topicId       String?   @db.Uuid
+  questionId    String    @db.Uuid
+  attemptId     String    @db.Uuid
+  studentAnswer String    @db.Text
+  correctAnswer String    @db.Text
+  explanation   String?   @db.Text
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic    Topic?      @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attempt  QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([userId, resolvedAt, createdAt])
+  @@index([topicId, createdAt])
+}
+
+model Recommendation {
+  id                 String               @id @default(uuid()) @db.Uuid
+  userId             String               @db.Uuid
+  topicId            String?              @db.Uuid
+  action             RecommendationAction
+  recommendedMinutes Int
+  score              Float
+  reason             String               @db.Text
+  evidence           Json
+  createdAt          DateTime             @default(now())
+  completedAt        DateTime?
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([userId, completedAt])
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  title     String
+  body      String    @db.Text
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model UserSettings {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @unique @db.Uuid
+  preferredStudyMinutes Int      @default(60)
+  notificationsEnabled  Boolean  @default(true)
+  emailNotifications    Boolean  @default(true)
+  aiResponseStyle       String   @default("guided")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AIUsage {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String?  @db.Uuid
+  operation     String
+  model         String
+  inputTokens   Int?
+  outputTokens  Int?
+  estimatedCost Decimal? @db.Decimal(12, 8)
+  createdAt     DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([operation, createdAt])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt, revokedAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model ExamEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  subjectId  String?  @db.Uuid
+  documentId String?  @db.Uuid
+  title      String
+  examAt     DateTime
+  importance Int      @default(3)
+  createdAt  DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject  Subject?  @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, examAt])
+  @@index([subjectId, examAt])
+}
+
+model GuidedLearningSession {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  topicId     String    @db.Uuid
+  status      String    @default("ACTIVE")
+  currentStep Int       @default(0)
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic                @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  steps GuidedLearningStep[]
+
+  @@index([userId, startedAt])
+  @@index([topicId])
+}
+
+model GuidedLearningStep {
+  id              String    @id @default(uuid()) @db.Uuid
+  sessionId       String    @db.Uuid
+  stepNumber      Int
+  prompt          String    @db.Text
+  response        String?   @db.Text
+  feedback        String?   @db.Text
+  explanation     String?   @db.Text
+  expectedConcept String?   @db.Text
+  awardedPoints   Float?
+  answeredAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  session GuidedLearningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, stepNumber])
+  @@index([sessionId])
+}
+
+model BackgroundJob {
+  id          String              @id @default(uuid()) @db.Uuid
+  userId      String?             @db.Uuid
+  type        BackgroundJobType
+  status      BackgroundJobStatus @default(PENDING)
+  payload     Json
+  attempts    Int                 @default(0)
+  maxAttempts Int                 @default(5)
+  availableAt DateTime            @default(now())
+  lockedAt    DateTime?
+  lastError   String?             @db.Text
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt])
+  @@index([userId, createdAt])
+}

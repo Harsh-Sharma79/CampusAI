@@ -1,0 +1,13 @@
+.git
+node_modules
+**/node_modules
+**/dist
+**/.env
+**/.env.local
+**/.env.production
+**/.env.*.local
+coverage
+server/uploads
+server/storage
+*.log
+.DS_Store
